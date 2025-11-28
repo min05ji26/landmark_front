@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity, FlatList } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { API_URL } from './constants';
+import { API_URL } from '../constants/constants';
 
 const RankingScreen = ({ onBack }) => { // onBack prop 추가
   const [rankingList, setRankingList] = useState([]);
