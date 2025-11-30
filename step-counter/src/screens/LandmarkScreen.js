@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TextInput, TouchableOpacity, 
-  FlatList, SafeAreaView, Platform, Image 
+  FlatList, SafeAreaView, Platform, Image, Keyboard, Alert 
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 // 🚨 경로 확인 (상위 폴더 utils)
 import { getItem } from '../utils/authStorage'; 
+import { API_URL } from '../constants/constants';
 
 // API URL (웹/앱 분기)
-const API_URL = Platform.OS === 'web' 
-  ? 'http://localhost:8080' 
-  : 'http://192.168.219.140:8080';
+
 
 const ITEMS_PER_PAGE = 3; 
 
@@ -20,44 +19,75 @@ export default function LandmarkScreen() {
   
   const [allLandmarks, setAllLandmarks] = useState([]); 
   const [displayedLandmarks, setDisplayedLandmarks] = useState([]); 
+  const [searchText, setSearchText] = useState(""); 
+  
+  const [userSteps, setUserSteps] = useState(0); // 👤 내 걸음 수 상태 추가
+  
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
+  // 1. 초기 데이터 로드 (랜드마크 목록 + 내 정보)
   useEffect(() => {
-    fetchLandmarks();
+    fetchData();
   }, []);
 
+  // 2. 검색어 및 페이지 변경 시 리스트 갱신
   useEffect(() => {
+    const filtered = allLandmarks.filter((item) => 
+        item.name.toLowerCase().includes(searchText.toLowerCase())
+    );
+
+    const newTotalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
     const end = start + ITEMS_PER_PAGE;
-    setDisplayedLandmarks(allLandmarks.slice(start, end));
-  }, [currentPage, allLandmarks]);
+    setDisplayedLandmarks(filtered.slice(start, end));
 
-  const fetchLandmarks = async () => {
+  }, [searchText, currentPage, allLandmarks]);
+
+  const fetchData = async () => {
     try {
       const token = await getItem('userToken');
       if (!token) return;
 
-      const response = await fetch(`${API_URL}/api/landmarks`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-      });
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
 
-      const json = await response.json();
-      if (json.success) {
-        const data = json.data;
-        setAllLandmarks(data);
-        setTotalPages(Math.ceil(data.length / ITEMS_PER_PAGE));
+      // (1) 랜드마크 목록 조회
+      const landmarkRes = await fetch(`${API_URL}/api/landmarks`, { headers });
+      const landmarkJson = await landmarkRes.json();
+      
+      // (2) 내 유저 정보 조회 (걸음 수 확인용)
+      const userRes = await fetch(`${API_URL}/api/user/info`, { headers });
+      const userJson = await userRes.json();
+
+      if (landmarkJson.success) {
+        setAllLandmarks(landmarkJson.data);
+        setTotalPages(Math.ceil(landmarkJson.data.length / ITEMS_PER_PAGE));
       }
+
+      if (userJson.success) {
+        setUserSteps(userJson.data.totalSteps); // 내 걸음 수 저장
+      }
+
     } catch (error) {
-      console.error("랜드마크 조회 실패:", error);
+      console.error("데이터 로드 실패:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = (text) => {
+    setSearchText(text);
+    setCurrentPage(1); 
+  };
+
+  const handleSearchSubmit = () => {
+    Keyboard.dismiss();
   };
 
   const handlePageChange = (page) => {
@@ -66,26 +96,68 @@ export default function LandmarkScreen() {
     }
   };
 
-  const renderItem = ({ item }) => (
-    // 🚨 [수정된 부분] View 대신 TouchableOpacity 사용 & onPress 추가
-    // 클릭 시 'LandmarkDetail' 화면으로 이동하며, 선택한 랜드마크 정보(item)를 함께 전달
-    <TouchableOpacity 
-      style={styles.card}
-      onPress={() => navigation.navigate('LandmarkDetail', { landmark: item })}
-    >
-      <View style={styles.imageBox}>
-        {item.imageUrl ? (
-            <Image source={{uri: item.imageUrl}} style={styles.realImage} />
-        ) : null}
-      </View>
+  // 🎨 렌더링 아이템 (잠금 로직 적용)
+  const renderItem = ({ item }) => {
+    // 해금 여부 판단 (내 걸음 수 >= 필요 걸음 수)
+    const isUnlocked = userSteps >= item.requiredSteps;
 
-      <View style={styles.textArea}>
-        <Text style={styles.title}>{item.name}</Text>
-        <Text style={styles.desc}>{item.description || "설명이 없습니다."}</Text>
-        <Text style={styles.steps}>필요 걸음: {item.requiredSteps.toLocaleString()}보</Text>
-      </View>
-    </TouchableOpacity>
-  );
+    return (
+      <TouchableOpacity 
+        style={styles.card}
+        activeOpacity={0.7}
+        onPress={() => {
+          if (isUnlocked) {
+            // 해금되었으면 상세 페이지 이동
+            navigation.navigate('LandmarkDetail', { landmark: item });
+          } else {
+            // 미해금 시 알림창 띄우기
+            if (Platform.OS === 'web') {
+               alert(`아직 해금되지 않은 랜드마크 입니다.\n필요 걸음 수 : ${item.requiredSteps.toLocaleString()}보`);
+            } else {
+               Alert.alert(
+                 "🔒 잠겨있음", 
+                 `아직 해금되지 않은 랜드마크 입니다.\n필요 걸음 수 : ${item.requiredSteps.toLocaleString()}보`
+               );
+            }
+          }
+        }}
+      >
+        {/* 이미지 영역 */}
+        <View style={[styles.imageBox, !isUnlocked && styles.lockedImageBox]}>
+          {item.imageUrl ? (
+              <Image 
+                source={{uri: item.imageUrl}} 
+                style={[styles.realImage, !isUnlocked && styles.lockedImage]} 
+              />
+          ) : null}
+        </View>
+
+        {/* 텍스트 영역 */}
+        <View style={styles.textArea}>
+          {/* 제목: 잠겨있으면 회색(#ccc) + 굵기 조정 */}
+          <Text style={[styles.title, !isUnlocked && styles.lockedText]}>
+            {item.name}
+          </Text>
+          
+          <Text style={[styles.desc, !isUnlocked && styles.lockedTextSmall]}>
+            {item.description || "설명이 없습니다."}
+          </Text>
+          
+          {/* 걸음 수: 잠겨있으면 안보이게 할 수도 있고, 흐리게 할 수도 있음 (여기선 흐리게 유지) */}
+          <Text style={[styles.steps, !isUnlocked && styles.lockedTextSmall]}>
+            필요 걸음: {item.requiredSteps.toLocaleString()}보
+          </Text>
+        </View>
+
+        {/* 잠금 아이콘 (선택 사항) */}
+        {!isUnlocked && (
+           <View style={{position: 'absolute', right: 20}}>
+             <Text style={{fontSize: 20}}>🔒</Text>
+           </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -103,8 +175,14 @@ export default function LandmarkScreen() {
             style={styles.searchInput} 
             placeholder="랜드마크를 입력하세요" 
             placeholderTextColor="#aaa"
+            value={searchText}
+            onChangeText={handleSearch} 
+            onSubmitEditing={handleSearchSubmit} 
+            returnKeyType="search"
           />
-          <Text style={styles.searchIcon}>🔍</Text>
+          <TouchableOpacity onPress={handleSearchSubmit}>
+             <Text style={styles.searchIcon}>🔍</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -117,31 +195,47 @@ export default function LandmarkScreen() {
             renderItem={renderItem}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={{ paddingBottom: 20 }}
+            ListEmptyComponent={
+              <Text style={{textAlign:'center', marginTop: 50, color:'#888'}}>
+                검색 결과가 없습니다.
+              </Text>
+            }
           />
         )}
       </View>
 
-      <View style={styles.pagination}>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+      {!loading && displayedLandmarks.length > 0 && (
+        <View style={styles.pagination}>
           <TouchableOpacity 
-            key={page} 
-            onPress={() => handlePageChange(page)}
-            style={styles.pageNumberBox}
+            onPress={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
           >
-            <Text style={[
-              styles.pageNumber, 
-              currentPage === page && styles.activePageNumber
-            ]}>
-              {page}
-            </Text>
+             <Text style={[styles.pageArrow, currentPage === 1 && {opacity:0.3}]}>{"<"}</Text>
           </TouchableOpacity>
-        ))}
-        {totalPages > 1 && currentPage < totalPages && (
-             <TouchableOpacity onPress={() => handlePageChange(currentPage + 1)}>
-                <Text style={styles.pageArrow}>{">"}</Text>
-             </TouchableOpacity>
-        )}
-      </View>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <TouchableOpacity 
+              key={page} 
+              onPress={() => handlePageChange(page)}
+              style={styles.pageNumberBox}
+            >
+              <Text style={[
+                styles.pageNumber, 
+                currentPage === page && styles.activePageNumber
+              ]}>
+                {page}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          
+          <TouchableOpacity 
+            onPress={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+          >
+            <Text style={[styles.pageArrow, currentPage === totalPages && {opacity:0.3}]}>{">"}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -158,10 +252,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E0E0E0',
   },
   searchInput: { flex: 1, fontSize: 15 },
-  searchIcon: { fontSize: 20 },
+  searchIcon: { fontSize: 20, paddingLeft: 10 },
   listContainer: { flex: 1, paddingHorizontal: 20, marginTop: 10 },
   
-  // 카드 디자인
+  // 기본 카드 디자인
   card: {
     backgroundColor: '#fff', borderRadius: 20,
     flexDirection: 'row', alignItems: 'center',
@@ -183,6 +277,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 4 },
   desc: { fontSize: 13, color: '#888', marginBottom: 4 },
   steps: { fontSize: 12, color: '#4A90E2', fontWeight: '600' },
+
+  // 🔒 잠금 상태 스타일 (회색 처리)
+  lockedText: { color: '#ccc' }, 
+  lockedTextSmall: { color: '#e0e0e0' },
+  lockedImageBox: { opacity: 0.5 }, // 이미지 박스 전체 투명도
+  lockedImage: { tintColor: 'gray' }, // (옵션) 이미지 흑백 처리 효과
+
   pagination: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
     paddingVertical: 20
@@ -190,5 +291,5 @@ const styles = StyleSheet.create({
   pageNumberBox: { padding: 10 },
   pageNumber: { fontSize: 16, color: '#ccc' },
   activePageNumber: { color: '#333', fontWeight: 'bold', textDecorationLine: 'underline' },
-  pageArrow: { fontSize: 16, color: '#ccc', marginLeft: 10 }
+  pageArrow: { fontSize: 16, color: '#ccc', marginHorizontal: 10 }
 });

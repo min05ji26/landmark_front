@@ -4,20 +4,21 @@ import { Accelerometer } from 'expo-sensors';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// 🚨 utils 경로 (src/utils)
+// 🚨 utils 경로 확인 (src/utils/authStorage.js)
 import { getItem, setItem, deleteItem } from './src/utils/authStorage';
 
-// API 주소
-const API_URL = Platform.OS === 'web' 
-  ? 'http://localhost:8080' 
-  : 'http://192.168.219.140:8080';
+// 🚨 API 주소 (src/constants.js 에서 가져옴)
+import { API_URL } from './src/constants/constants';
 
 // 🚨 화면 파일 경로 (src/screens)
 import AuthScreen from './src/screens/AuthScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import RankingScreen from './src/screens/RankingScreen';
 import LandmarkScreen from './src/screens/LandmarkScreen';
-import LandmarkDetailScreen from './src/screens/LandmarkDetailScreen'; // 👈 [추가됨] 상세 화면 import
+import LandmarkDetailScreen from './src/screens/LandmarkDetailScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import FriendListScreen from './src/screens/FriendListScreen';     // 👈 친구 목록 화면 추가
+import FriendProfileScreen from './src/screens/FriendProfileScreen'; // 👈 친구 상세 프로필 화면 추가
 
 const Stack = createNativeStackNavigator();
 
@@ -134,6 +135,7 @@ export default function App() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {isLoggedIn ? (
             <>
+              {/* 1. 홈 화면 (메인) */}
               <Stack.Screen name="Home">
                 {(props) => (
                   <HomeScreen 
@@ -143,14 +145,20 @@ export default function App() {
                   />
                 )}
               </Stack.Screen>
+
+              {/* 2. 랭킹 & 랜드마크 */}
               <Stack.Screen name="Ranking" component={RankingScreen} />
               <Stack.Screen name="Landmark" component={LandmarkScreen} />
-              
-              {/* 👇 [추가됨] 상세 화면 등록 (name="LandmarkDetail" 중요!) */}
               <Stack.Screen name="LandmarkDetail" component={LandmarkDetailScreen} />
+              
+              {/* 3. 내 프로필 & 친구 관련 화면 */}
+              <Stack.Screen name="Profile" component={ProfileScreen} />
+              <Stack.Screen name="FriendList" component={FriendListScreen} />
+              <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
             </>
           ) : (
             <>
+              {/* 0. 로그인/회원가입 화면 */}
               <Stack.Screen name="Auth">
                 {(props) => (
                   <AuthScreen 

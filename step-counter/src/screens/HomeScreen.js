@@ -4,12 +4,11 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
-// 🚨 경로 확인 (같은 폴더)
+// 🚨 utils 경로 확인
 import { getItem, deleteItem } from '../utils/authStorage'; 
 
-const API_URL = Platform.OS === 'web' 
-  ? 'http://localhost:8080' 
-  : 'http://192.168.219.140:8080';
+// 🚨 constants 경로 확인 (파일 위치에 따라 '../constants' 또는 '../constants/constants' 로 수정 필요)
+import { API_URL } from '../constants/constants';
 
 export default function HomeScreen({ navigation, stepCount, onLogout }) {
   const [loading, setLoading] = useState(true);
@@ -83,6 +82,25 @@ export default function HomeScreen({ navigation, stepCount, onLogout }) {
     }
   };
 
+  // 웹 테스트용 강제 걸음 추가 함수
+  const addTestSteps = async () => {
+    try {
+      const token = await getItem('userToken');
+      await fetch(`${API_URL}/api/steps/sync`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ steps: 500 }) 
+      });
+      alert("테스트: 500보 추가됨! (새로고침 하세요)");
+      fetchHomeData(); 
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchHomeData();
@@ -138,19 +156,27 @@ export default function HomeScreen({ navigation, stepCount, onLogout }) {
           </View>
         </View>
 
+        {/* 웹 환경일 때만 보이는 테스트 버튼 */}
+        {Platform.OS === 'web' && (
+            <TouchableOpacity 
+                style={{backgroundColor: '#FFEB3B', padding: 15, borderRadius: 10, marginBottom: 20, alignItems:'center'}}
+                onPress={addTestSteps}
+            >
+                <Text style={{fontWeight: 'bold', color: '#333'}}>🚧 TEST: 걸음 수 500보 추가하기</Text>
+            </TouchableOpacity>
+        )}
+
         <View style={styles.menuCard}>
-          {/* 랜드마크 버튼: 클릭 시 이동 */}
           <MenuItem 
             title="랜드마크" 
-            desc={`현재 내 위치 → ${currentLocation}`} 
+            desc={`현재: ${currentLocation}`} 
             iconPlaceholder="🏯"
             isLandmark={true}
-            // 🚨 수정된 부분: 네비게이션 이동
             onClick={() => navigation.navigate('Landmark')} 
           />
           <MenuItem 
             title="랭킹" 
-            desc={`${myRank}위`} 
+            desc={myRank > 0 ? `${myRank}위` : "-"} 
             iconPlaceholder="🥈"
             onClick={() => navigation.navigate('Ranking')} 
           />
@@ -162,8 +188,18 @@ export default function HomeScreen({ navigation, stepCount, onLogout }) {
           />
         </View>
 
-        <BottomButton title="내 프로필" iconPlaceholder="👤" onClick={() => Alert.alert("알림", "준비중입니다.")} />
-        <BottomButton title="친구" iconPlaceholder="👥" onClick={() => Alert.alert("알림", "준비중입니다.")} />
+        <BottomButton 
+            title="내 프로필" 
+            iconPlaceholder="👤" 
+            onClick={() => navigation.navigate('Profile')} 
+        />
+        
+        {/* 🚨 [수정] 친구 목록 화면으로 연결 */}
+        <BottomButton 
+            title="친구" 
+            iconPlaceholder="👥" 
+            onClick={() => navigation.navigate('FriendList')} 
+        />
         
         <TouchableOpacity style={[styles.bottomButton, styles.logoutButton]} onPress={handleLogoutPress}>
            <View style={[styles.iconBox, styles.logoutIconBox]}>
@@ -176,9 +212,8 @@ export default function HomeScreen({ navigation, stepCount, onLogout }) {
   );
 }
 
-// ... (MenuItem, BottomButton, styles는 기존과 동일하게 유지)
 function MenuItem({ title, desc, iconPlaceholder, iconSource, isLandmark, onClick }) {
-  const shouldHideDesc = desc === "0위" || desc === "0" || !desc;
+  const shouldHideDesc = !desc; 
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onClick} activeOpacity={0.7}>
       <View style={styles.iconBox}>

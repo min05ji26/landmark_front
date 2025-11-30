@@ -4,11 +4,8 @@ import {
   SafeAreaView, Platform, Dimensions 
 } from 'react-native';
 import { getItem } from '../utils/authStorage'; 
+import { API_URL } from '../constants/constants';
 
-// API URL 설정
-const API_URL = Platform.OS === 'web' 
-  ? 'http://localhost:8080' 
-  : 'http://192.168.219.140:8080'; 
 
 const { width } = Dimensions.get('window');
 

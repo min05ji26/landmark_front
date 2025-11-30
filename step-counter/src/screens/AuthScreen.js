@@ -5,12 +5,11 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView,
 // 🚨 [수정 1] SecureStore 직접 임포트 대신, 위에서 만든 유틸리티를 가져옵니다.
 // 경로가 다르다면 본인 프로젝트 구조에 맞춰 수정하세요 (예: './utils/authStorage')
 import { setItem } from '../utils/authStorage';
+// ✅ 아까 만든 설정 파일에서 API_URL을 가져옵니다.
+import { API_URL } from '../constants/constants';
 
 // 🚨 [수정 2] 웹과 앱의 API 주소를 분리합니다.
 // 기존 constants 파일이 있다면 거기를 수정해도 되지만, 여기서 처리하는 게 확실합니다.
-const API_URL = Platform.OS === 'web' 
-  ? 'http://localhost:8080'           // 웹 브라우저용
-  : 'http://192.168.219.140:8080';    // ⚠️ 앱용: 본인 PC IP로 변경 필수!
 
 const AuthScreen = ({ onLoginSuccess }) => {
   // false: 회원가입, true: 로그인
