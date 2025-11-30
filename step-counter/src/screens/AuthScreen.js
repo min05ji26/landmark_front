@@ -4,7 +4,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView,
 
 // 🚨 [수정 1] SecureStore 직접 임포트 대신, 위에서 만든 유틸리티를 가져옵니다.
 // 경로가 다르다면 본인 프로젝트 구조에 맞춰 수정하세요 (예: './utils/authStorage')
-import { setItem } from './authStorage';
+import { setItem } from '../utils/authStorage';
 
 // 🚨 [수정 2] 웹과 앱의 API 주소를 분리합니다.
 // 기존 constants 파일이 있다면 거기를 수정해도 되지만, 여기서 처리하는 게 확실합니다.
@@ -14,7 +14,7 @@ const API_URL = Platform.OS === 'web'
 
 const AuthScreen = ({ onLoginSuccess }) => {
   // false: 회원가입, true: 로그인
-  const [isLoginMode, setIsLoginMode] = useState(false);
+  const [isLoginMode, setIsLoginMode] = useState(true);
 
   const [formData, setFormData] = useState({
     username: '',

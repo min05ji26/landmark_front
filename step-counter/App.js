@@ -4,34 +4,35 @@ import { Accelerometer } from 'expo-sensors';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// 🚨 [수정 1] 유틸리티 임포트 (로그인 오류 해결)
-import { getItem, setItem, deleteItem } from './authStorage';
+// 🚨 utils 경로 (src/utils)
+import { getItem, setItem, deleteItem } from './src/utils/authStorage';
 
-// 🚨 [수정 2] API 주소 분리
+// API 주소
 const API_URL = Platform.OS === 'web' 
   ? 'http://localhost:8080' 
-  : 'http://192.168.219.140:8080'; // 본인 PC IP 확인 필수!
+  : 'http://192.168.219.140:8080';
 
-import AuthScreen from './AuthScreen';
-import HomeScreen from './HomeScreen';
-import RankingScreen from './RankingScreen';
+// 🚨 화면 파일 경로 (src/screens)
+import AuthScreen from './src/screens/AuthScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import RankingScreen from './src/screens/RankingScreen';
+import LandmarkScreen from './src/screens/LandmarkScreen';
+import LandmarkDetailScreen from './src/screens/LandmarkDetailScreen'; // 👈 [추가됨] 상세 화면 import
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
-  // 상태 메시지 및 센서 관련
   const [sensorStatus, setSensorStatus] = useState('센서 연결 중...');
   const [todayStepCount, setTodayStepCount] = useState(0); 
   
   const stepsToSendRef = useRef(0); 
-  const lastUpdateRef = useRef(0); // 중복 카운트 방지용
+  const lastUpdateRef = useRef(0); 
 
   useEffect(() => {
     checkLogin();
     return () => {
-      // 앱 꺼질 때 센서 끄기 (웹에서는 무시)
       if (Platform.OS !== 'web') {
         Accelerometer.removeAllListeners();
       }
@@ -40,7 +41,6 @@ export default function App() {
 
   const checkLogin = async () => {
     try {
-      // 🚨 [수정 3] getItem 사용
       const savedToken = await getItem('userToken');
       if (savedToken) {
         setIsLoggedIn(true);
@@ -53,13 +53,11 @@ export default function App() {
 
   const handleLoginSuccess = async (jwtToken) => {
     setIsLoggedIn(true);
-    // 🚨 [수정 4] setItem 사용
     await setItem('userToken', jwtToken);
     startAccelerometer(); 
   };
 
   const handleLogout = async () => {
-    // 🚨 [수정 5] deleteItem 사용
     await deleteItem('userToken');
     setIsLoggedIn(false);
     stepsToSendRef.current = 0;
@@ -71,31 +69,22 @@ export default function App() {
     setSensorStatus('로그아웃 됨');
   };
 
-  // 🔥 가속도 센서 로직 (기존 코드 유지 + 웹 예외 처리)
   const startAccelerometer = () => {
-    // 웹에서는 센서 작동 안 함
     if (Platform.OS === 'web') {
       setSensorStatus('🌐 웹 환경 (센서 미지원)');
       return;
     }
 
     setSensorStatus('🟢 가속도 센서 작동 중');
-    
-    // 센서 민감도 설정 (보통)
     Accelerometer.setUpdateInterval(100); 
 
     Accelerometer.addListener(data => {
       const { x, y, z } = data;
-      
-      // 흔들림 강도 계산
       const magnitude = Math.sqrt(x * x + y * y + z * z);
-      
-      // 기준치(1.2)보다 세게 흔들리면 걸음으로 간주
       if (magnitude > 1.2) {
         const now = Date.now();
         if (now - lastUpdateRef.current > 350) {
           lastUpdateRef.current = now;
-          
           stepsToSendRef.current += 1;
           setTodayStepCount(prev => prev + 1);
           console.log("👣 쿵! 발걸음 감지 (+1)");
@@ -103,7 +92,6 @@ export default function App() {
       }
     });
 
-    // 10초마다 서버 전송
     const syncInterval = setInterval(async () => {
       if (stepsToSendRef.current > 0) {
           await sendStepsToServer(stepsToSendRef.current);
@@ -136,7 +124,6 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 상태 표시줄 (디자인 유지) */}
       <View style={styles.statusHeader}>
          <Text style={{fontSize: 12}}>
             {sensorStatus} | 오늘: {todayStepCount}보 | 대기: {stepsToSendRef.current}
@@ -157,6 +144,10 @@ export default function App() {
                 )}
               </Stack.Screen>
               <Stack.Screen name="Ranking" component={RankingScreen} />
+              <Stack.Screen name="Landmark" component={LandmarkScreen} />
+              
+              {/* 👇 [추가됨] 상세 화면 등록 (name="LandmarkDetail" 중요!) */}
+              <Stack.Screen name="LandmarkDetail" component={LandmarkDetailScreen} />
             </>
           ) : (
             <>
